@@ -1,8 +1,40 @@
 export async function onRequest(context) {
-    // سطر التشخيص: يعرض لك هل المتغيرات موجودة أم لا
-    return new Response(JSON.stringify({
-        binId: context.env.BIN_ID ? "موجود" : "غير موجود",
-        masterKey: context.env.MASTER_KEY ? "موجود" : "غير موجود",
-        allEnvKeys: Object.keys(context.env)
-    }), { headers: { "Content-Type": "application/json" } });
+    const corsHeaders = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type"
+    };
+
+    if (context.request.method === "OPTIONS") {
+        return new Response(null, { status: 204, headers: corsHeaders });
+    }
+
+    // قراءة المتغيرات بالطريقة الصحيحة لـ Cloudflare
+    const binId = context.env.BIN_ID;
+    const key = context.env.MASTER_KEY;
+
+    if (!binId || !key) {
+        return new Response(JSON.stringify({ error: "Missing env vars" }), {
+            status: 500,
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+    }
+
+    try {
+        const r = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
+            headers: { "X-Master-Key": key },
+            cache: "no-store"
+        });
+        const data = await r.json();
+
+        return new Response(JSON.stringify(data), {
+            status: 200,
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+    } catch (e) {
+        return new Response(JSON.stringify({ error: e.message }), {
+            status: 500,
+            headers: { "Content-Type": "application/json", ...corsHeaders }
+        });
+    }
 }
